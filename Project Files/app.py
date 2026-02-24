@@ -1,152 +1,285 @@
 import streamlit as st
 import pandas as pd
 import pickle
+import plotly.express as px
 import plotly.graph_objects as go
-import shap
-import matplotlib.pyplot as plt
 
-# ---------------- PAGE CONFIG ----------------
+# =============================
+# PAGE CONFIG
+# =============================
 st.set_page_config(
-    page_title="Online Fraud Detection",
-    page_icon="💳",
-    layout="wide"
+    page_title="FraudShield AI",
+    page_icon="🛡️",
+    layout="wide",
 )
 
-# ---------------- LOAD MODEL ----------------
+# =============================
+# THEME TOGGLE
+# =============================
+if "theme" not in st.session_state:
+    st.session_state.theme = "dark"
+
+def toggle_theme():
+    st.session_state.theme = (
+        "light" if st.session_state.theme == "dark" else "dark"
+    )
+
+# =============================
+# FAANG CSS
+# =============================
+if st.session_state.theme == "dark":
+    bg = "#0b1220"
+    card = "rgba(255,255,255,0.06)"
+    text = "white"
+else:
+    bg = "#f5f7fb"
+    card = "white"
+    text = "#111"
+
+st.markdown(
+    f"""
+<style>
+
+/* App background */
+.stApp {{
+    background: {bg};
+    color: {text};
+}}
+
+/* Top navbar */
+.navbar {{
+    position: sticky;
+    top: 0;
+    z-index: 999;
+    padding: 14px 24px;
+    background: linear-gradient(90deg,#2563eb,#7c3aed);
+    border-radius: 14px;
+    margin-bottom: 18px;
+}}
+
+/* Title */
+.nav-title {{
+    font-size: 28px;
+    font-weight: 800;
+    color: white;
+}}
+
+/* Glass card */
+.card {{
+    background: {card};
+    padding: 22px;
+    border-radius: 18px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    transition: 0.25s;
+}}
+.card:hover {{
+    transform: translateY(-4px);
+}}
+
+/* KPI number */
+.kpi {{
+    font-size: 32px;
+    font-weight: 800;
+}}
+
+/* Risk pills */
+.pill-high {{
+    background:#dc2626;
+    padding:6px 16px;
+    border-radius:999px;
+    font-weight:700;
+    color:white;
+}}
+.pill-med {{
+    background:#f59e0b;
+    padding:6px 16px;
+    border-radius:999px;
+    font-weight:700;
+    color:white;
+}}
+.pill-low {{
+    background:#16a34a;
+    padding:6px 16px;
+    border-radius:999px;
+    font-weight:700;
+    color:white;
+}}
+
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+# =============================
+# LOAD MODEL
+# =============================
 @st.cache_resource
-def load_model():
+def load_artifacts():
     with open("model.pkl", "rb") as f:
-        model, le = pickle.load(f)
-    return model, le
+        model, le, features = pickle.load(f)
+    return model, le, features
 
-model, le = load_model()
+model, le, features = load_artifacts()
 
-# ---------------- SIDEBAR ----------------
-st.sidebar.title("🔎 Navigation")
-page = st.sidebar.radio(
-    "Go to",
-    ["Fraud Prediction", "Model Dashboard", "About Project"]
+# =============================
+# NAVBAR
+# =============================
+nav1, nav2 = st.columns([6, 1])
+
+with nav1:
+    st.markdown(
+        '<div class="navbar"><span class="nav-title">🛡️ FraudShield AI</span></div>',
+        unsafe_allow_html=True,
+    )
+
+with nav2:
+    st.button("🌙 Toggle Theme", on_click=toggle_theme)
+
+st.caption("Enterprise-grade payment risk intelligence")
+
+# =============================
+# SIDEBAR
+# =============================
+st.sidebar.header("🧾 Controls")
+
+mode = st.sidebar.radio(
+    "Mode",
+    ["🔍 Single Analysis", "📂 Bulk Analytics"],
 )
 
-# =====================================================
-# PAGE 1 — FRAUD PREDICTION
-# =====================================================
-if page == "Fraud Prediction":
+# =========================================================
+# 🔹 SINGLE MODE
+# =========================================================
+if mode == "🔍 Single Analysis":
 
-    st.title("💳 Online Fraud Detection System")
-    st.markdown("### Enter transaction details")
+    step = st.sidebar.number_input("Step", 1, 1000, 1)
+    type_input = st.sidebar.selectbox("Transaction Type", le.classes_)
+    amount = st.sidebar.number_input("Amount", 0.0, value=1000.0)
+    oldbalanceOrg = st.sidebar.number_input("Sender Old Balance", 0.0, value=5000.0)
+    newbalanceOrig = st.sidebar.number_input("Sender New Balance", 0.0, value=4000.0)
+    oldbalanceDest = st.sidebar.number_input("Receiver Old Balance", 0.0, value=0.0)
+    newbalanceDest = st.sidebar.number_input("Receiver New Balance", 0.0, value=1000.0)
 
-    col1, col2 = st.columns(2)
+    run = st.sidebar.button("🚀 Run AI Analysis")
 
-    with col1:
-        type_input = st.selectbox(
-            "Transaction Type",
-            ["PAYMENT", "TRANSFER", "CASH_OUT", "DEBIT"]
-        )
-        amount = st.number_input("Amount", min_value=0.0)
-        oldbalanceOrg = st.number_input("Old Balance Origin", min_value=0.0)
+    # KPI ROW
+    k1, k2, k3 = st.columns(3)
 
-    with col2:
-        newbalanceOrig = st.number_input("New Balance Origin", min_value=0.0)
-        oldbalanceDest = st.number_input("Old Balance Destination", min_value=0.0)
-        newbalanceDest = st.number_input("New Balance Destination", min_value=0.0)
+    k1.markdown(
+        f'<div class="card"><div>💰 Amount</div><div class="kpi">₹{amount:,.0f}</div></div>',
+        unsafe_allow_html=True,
+    )
+    k2.markdown(
+        f'<div class="card"><div>📤 Sender</div><div class="kpi">₹{oldbalanceOrg:,.0f}</div></div>',
+        unsafe_allow_html=True,
+    )
+    k3.markdown(
+        f'<div class="card"><div>📥 Receiver</div><div class="kpi">₹{newbalanceDest:,.0f}</div></div>',
+        unsafe_allow_html=True,
+    )
 
-    if st.button("🚀 Predict Fraud", use_container_width=True):
+    # =============================
+    # PREDICTION
+    # =============================
+    if run:
 
         type_encoded = le.transform([type_input])[0]
 
-        input_df = pd.DataFrame([{
-            'step': 1,
-            'type': type_encoded,
-            'amount': amount,
-            'oldbalanceOrg': oldbalanceOrg,
-            'newbalanceOrig': newbalanceOrig,
-            'oldbalanceDest': oldbalanceDest,
-            'newbalanceDest': newbalanceDest
-        }])
-        if 'step' in input_df.columns:
-            input_df = input_df.drop(columns=['step'])
-           
-        prediction = model.predict(input_df)[0]
-        probability = model.predict_proba(input_df)[0][1]
+        input_dict = {
+            "step": step,
+            "type": type_encoded,
+            "amount": amount,
+            "oldbalanceOrg": oldbalanceOrg,
+            "newbalanceOrig": newbalanceOrig,
+            "oldbalanceDest": oldbalanceDest,
+            "newbalanceDest": newbalanceDest,
+        }
 
-        # ---------- Gauge ----------
-        fig = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=probability * 100,
-            title={'text': "Fraud Probability (%)"},
-            gauge={'axis': {'range': [0, 100]}}
-        ))
-        st.plotly_chart(fig, use_container_width=True)
+        input_df = pd.DataFrame([input_dict])[features]
 
-        if prediction == 1:
-            st.error("🚨 Fraudulent Transaction Detected!")
+        pred = model.predict(input_df)[0]
+        prob = model.predict_proba(input_df)[0][1]
+
+        # Risk pill
+        if prob > 0.8:
+            pill = '<span class="pill-high">HIGH RISK</span>'
+        elif prob > 0.4:
+            pill = '<span class="pill-med">MEDIUM RISK</span>'
         else:
-            st.success("✅ Legitimate Transaction")
+            pill = '<span class="pill-low">LOW RISK</span>'
 
-        # ---------- SHAP ----------
-        st.subheader("🧠 Model Explanation")
+        st.markdown("## 🤖 AI Verdict")
 
-        try:
-            explainer = shap.TreeExplainer(model)
-            shap_values = explainer.shap_values(input_df)
+        v1, v2 = st.columns([1, 1])
 
-            fig2, ax = plt.subplots()
-            shap.summary_plot(
-                shap_values,
-                input_df,
-                plot_type="bar",
-                show=False
+        with v1:
+            if pred == 1:
+                st.error("🚨 Fraudulent Transaction")
+            else:
+                st.success("✅ Legitimate Transaction")
+
+            st.markdown(f"### Risk Level: {pill}", unsafe_allow_html=True)
+            st.progress(float(prob))
+
+        # Donut gauge
+        with v2:
+            fig = go.Figure(
+                go.Pie(
+                    values=[prob, 1 - prob],
+                    hole=0.7,
+                    labels=["Fraud Risk", ""],
+                    marker=dict(colors=["#ef4444", "#1f2937"]),
+                    textinfo="none",
+                )
             )
-            st.pyplot(fig2)
-        except Exception:
-            st.info("SHAP explanation not available in this environment.")
+            fig.update_layout(height=300, showlegend=False)
+            st.plotly_chart(fig, use_container_width=True)
 
-# =====================================================
-# PAGE 2 — DASHBOARD
-# =====================================================
-elif page == "Model Dashboard":
-
-    st.title("📊 Model Performance Dashboard")
-
-    df = pd.read_csv("fraud.csv")
-    fraud_count = df['isFraud'].value_counts()
-
-    fig = go.Figure(data=[
-        go.Pie(
-            labels=["Legitimate", "Fraud"],
-            values=fraud_count.values,
-            hole=.4
-        )
-    ])
-    st.plotly_chart(fig, use_container_width=True)
-
-    st.subheader("📌 Dataset Preview")
-    st.dataframe(df.head())
-
-# =====================================================
-# PAGE 3 — ABOUT
-# =====================================================
+# =========================================================
+# 🔹 BULK MODE
+# =========================================================
 else:
 
-    st.title("ℹ️ About This Project")
+    st.subheader("📂 Bulk Intelligence")
 
-    st.markdown("""
-### 💳 Online Fraud Detection
+    uploaded = st.file_uploader("Upload CSV", type=["csv"])
 
-This project uses Machine Learning to detect fraudulent
-financial transactions in real time.
+    if uploaded:
+        df = pd.read_csv(uploaded)
 
-### 🔧 Technologies Used
-- Python  
-- Scikit-learn  
-- Streamlit  
-- SHAP Explainability  
-- Plotly  
+        if "type" in df.columns:
+            df["type"] = le.transform(df["type"])
 
-### 🎯 Author
-Vyshnavi Reddy
+        input_df = df[features]
 
----
-⭐ Internship-ready AI project
-""")
+        df["Prediction"] = model.predict(input_df)
+        df["Fraud_Probability"] = model.predict_proba(input_df)[:, 1]
+
+        c1, c2 = st.columns(2)
+
+        with c1:
+            st.plotly_chart(
+                px.pie(df, names="Prediction", title="Fraud Distribution"),
+                use_container_width=True,
+            )
+
+        with c2:
+            st.plotly_chart(
+                px.scatter(
+                    df,
+                    x="amount",
+                    y="Fraud_Probability",
+                    color="Prediction",
+                    title="Risk Scatter",
+                ),
+                use_container_width=True,
+            )
+
+        st.dataframe(df.head())
+
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button("⬇️ Download Results", csv, "fraud_predictions.csv")
+
+st.markdown("---")
+st.caption("🛡️ FraudShield AI • FAANG-level UI • Built by Vyshnavi")
