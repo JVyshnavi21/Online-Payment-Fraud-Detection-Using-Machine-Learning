@@ -1,6 +1,6 @@
 # 🚨 Online Payment Fraud Detection Using Machine Learning
 ---
-- 🚀 Internship Project by J.Vyshnavi Reddy.
+- 🚀 Internship Project by J.Vyshnavi Reddy,M.Kalam,T.Mahimanvitha,Shaik Ayaz Basha.
 - 🎓 Santhiram Engineering College
 
 - 🧠 Platform: SmartInternz with IBM
